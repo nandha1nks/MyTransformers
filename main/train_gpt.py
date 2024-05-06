@@ -1,5 +1,3 @@
-import random
-
 from nltk.translate.bleu_score import corpus_bleu
 import torch
 from torch.utils.data import DataLoader
@@ -87,7 +85,7 @@ optimizer = torch.optim.Adam(
 )
 
 train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, collate_fn=collate_fn)
-val_loader = DataLoader(val_dataset, batch_size=8, shuffle=True, collate_fn=collate_fn)
+val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False, collate_fn=collate_fn)
 
 
 def lr_schedule(step_num_):
@@ -98,79 +96,97 @@ model.load_state_dict(torch.load("sample_epoch.pth"))
 print("MAX_SEQ_LEN", MAX_SEQ_LEN)
 step_num = 0
 epoch = 0
-# while step_num < 5000:
-#     model.train()
-#     train_loss = 0
-#
-#     for idx, d in tqdm(enumerate(train_loader), total=len(train_loader)):
-#         optimizer.zero_grad()
-#
-#         tgt, tgt_attn = d
-#         pred = model(tgt[:, :-1], tgt_attn[:, :-1])
-#
-#         flattened_mask = tgt_attn[:, :-1].reshape(-1)
-#         loss = criterion(pred.view(-1, len(vocabs))[flattened_mask == 1],
-#                          tgt[:, 1:].reshape(-1)[flattened_mask == 1])
-#         loss.backward()
-#         clip_grad_norm_(model.parameters(), grad_clip_threshold)
-#
-#         optimizer.step()
-#         train_loss += loss.item()
-#         step_num += 1
-#
-#         if (idx + 1) % 100 == 0:
-#             print(f"Train {idx} iter {(idx + 1) // 100} train loss {train_loss / (idx + 1)}")
-#
-#     average_train_loss = train_loss / len(train_loader)
-#     print(average_train_loss)
-#     torch.save(model.state_dict(), f"sample_epoch.pth")
-#
-#     all_references = []
-#     all_candidates = []
-#
-#     with torch.no_grad():
-#         for idx, d in tqdm(enumerate(val_loader), total=len(val_loader)):
-#             src, attn = d
-#
-#             pred, pred_attn = model.predict(src[:, :6], attn[:, :6])
-#             references = pred.cpu().numpy().tolist()
-#             candidates = src.cpu().detach().tolist()
-#
-#             all_references.extend(references)
-#             all_candidates.extend(candidates)
-#
-#     bleu_score = corpus_bleu([[r] for r in all_references], [c for c in all_candidates])
-#
-#     print(f"Epoch [{epoch + 1}] => "
-#           # f"Train Loss: {average_train_loss:.4f}, "
-#           f"Validation BLEU: {bleu_score:.4f}")
-#
-#     epoch += 1
+while step_num < 5000:
+    model.train()
+    train_loss = 0
+
+    for idx, d in tqdm(enumerate(train_loader), total=len(train_loader)):
+        optimizer.zero_grad()
+
+        tgt, tgt_attn = d
+        pred = model(tgt[:, :-1], tgt_attn[:, :-1])
+
+        flattened_mask = tgt_attn[:, :-1].reshape(-1)
+        loss = criterion(pred.view(-1, len(vocabs))[flattened_mask == 1],
+                         tgt[:, 1:].reshape(-1)[flattened_mask == 1])
+        loss.backward()
+        clip_grad_norm_(model.parameters(), grad_clip_threshold)
+
+        optimizer.step()
+        train_loss += loss.item()
+        step_num += 1
+
+        if (idx + 1) % 100 == 0:
+            print(f"Train {idx} iter {(idx + 1) // 100} train loss {train_loss / (idx + 1)}")
+
+    average_train_loss = train_loss / len(train_loader)
+    print(average_train_loss)
+    torch.save(model.state_dict(), f"sample_epoch.pth")
+
+    all_references = []
+    all_candidates = []
+
+    with torch.no_grad():
+        for idx, d in tqdm(enumerate(val_loader), total=len(val_loader)):
+            src, attn = d
+
+            pred, pred_attn = model.predict(src[:, :6], attn[:, :6])
+            references = pred.cpu().numpy().tolist()
+            candidates = src.cpu().detach().tolist()
+
+            all_references.extend(references)
+            all_candidates.extend(candidates)
+
+    bleu_score = corpus_bleu([[r] for r in all_references], [c for c in all_candidates])
+
+    print(f"Epoch [{epoch + 1}] => "
+          # f"Train Loss: {average_train_loss:.4f}, "
+          f"Validation BLEU: {bleu_score:.4f}")
+
+    epoch += 1
 
 
-# for idx in range(src.size(0)):
-#     print(tokenizer.detokenize(src[idx].tolist()))
-#     print(tgt_tokenizer.detokenize(tgt[idx].tolist()))
-#     model.predict(src[idx])
-#     tokens = model.predict(src[idx].to(device))
-#     print(tgt_tokenizer.detokenize(tokens))
-#     print()
-
-model.load_state_dict(torch.load("sample_epoch.pth"))
-
-all_references = []
-all_candidates = []
-
-with torch.no_grad():
-    for idx, d in tqdm(enumerate(val_loader), total=len(val_loader)):
-        src, attn = d
-
-        pred, pred_attn = model.predict(src[:, :6], attn[:, :6])
-        references = pred.cpu().numpy().tolist()
-        candidates = src.cpu().detach().tolist()
-
-        all_references.extend(references)
-        all_candidates.extend(candidates)
-
-bleu_score = corpus_bleu([[r] for r in all_references], [c for c in all_candidates])
-print(bleu_score)
+# model.load_state_dict(torch.load("sample_epoch.pth"))
+#
+# model.eval()
+# all_references = []
+# all_candidates = []
+#
+# with torch.no_grad():
+#     for idx, d in tqdm(enumerate(val_loader), total=len(val_loader)):
+#         src, attn = d
+#
+#         pred, pred_attn = model.predict(src[:, :6], attn[:, :6])
+#         references = pred.cpu().numpy().tolist()
+#         candidates = src.cpu().detach().tolist()
+#
+#         all_references.extend(references)
+#         all_candidates.extend(candidates)
+#
+# bleu_score = corpus_bleu([[r] for r in all_references], [c for c in all_candidates])
+# print(bleu_score)
+# if os.path.exists("1.json"):
+#     d = json.load(open("1.json"))
+#     print(json.load(open("1.json")) == [all_references, all_candidates])
+# json.dump([all_references, all_candidates], open("1.json", "w+"))
+#
+#
+# all_references_2 = []
+# all_candidates_2 = []
+# model.use_kv = True
+# with torch.no_grad():
+#     for idx, d in tqdm(enumerate(val_loader), total=len(val_loader)):
+#         src, attn = d
+#
+#         pred, pred_attn = model.predict_kv(src[:, :6], attn[:, :6])
+#         references = pred.cpu().numpy().tolist()
+#         candidates = src.cpu().detach().tolist()
+#
+#         all_references_2.extend(references)
+#         all_candidates_2.extend(candidates)
+#
+# bleu_score_2 = corpus_bleu([[r] for r in all_references_2], [c for c in all_candidates_2])
+# print(bleu_score_2)
+# if os.path.exists("2.json"):
+#     print(json.load(open("2.json")) == [all_references_2, all_candidates_2])
+# json.dump([all_references_2, all_candidates_2], open("2.json", "w+"))

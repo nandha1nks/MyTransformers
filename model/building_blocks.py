@@ -33,13 +33,17 @@ class MultiAttentionHead(nn.Module):
         self.WV = nn.Linear(d_model, d_model)
         self.linear = nn.Linear(d_model, d_model)
 
-    def forward(self, Q, K, V, mask):
+    def forward(self, Q, K, V, mask, past=None):
         Q = self.WQ(Q).view(Q.size(0), -1, self.num_heads, self.d_hidden).transpose(1, 2)
         K = self.WK(K).view(K.size(0), -1, self.num_heads, self.d_hidden).transpose(1, 2)
         V = self.WV(V).view(V.size(0), -1, self.num_heads, self.d_hidden).transpose(1, 2)
 
+        if past:
+            K = torch.concat([past[0], K], dim=-2)
+            V = torch.concat([past[1], V], dim=-2)
+
         k = self_attention(Q, K, V, mask, self.d_model).transpose(1, 2).contiguous().view(Q.size(0), -1, self.d_model)
-        return self.linear(k)
+        return self.linear(k), K, V
 
 
 class PositionWiseFeedForward(nn.Module):
@@ -66,7 +70,8 @@ class EncoderLayer(nn.Module):
         self.dropout = nn.Dropout(p)
 
     def forward(self, x, mask):
-        x = self.norm1(x + self.dropout(self.mha(x, x, x, mask)))
+        m, _, _ = self.mha(x, x, x, mask)
+        x = self.norm1(x + self.dropout(m))
         x = self.norm2(x + self.dropout(self.pff(x)))
         return x
 
@@ -83,7 +88,9 @@ class DecoderLayer(nn.Module):
         self.dropout = nn.Dropout(p)
 
     def forward(self, x, enc, mask, enc_mask):
-        x = self.norm1(x + self.dropout(self.mha(x, x, x, mask)))
-        x = self.norm2(x + self.dropout(self.mha2(x, enc, enc, enc_mask)))
+        m, _, _ = self.mha(x, x, x, mask)
+        x = self.norm1(x + self.dropout(m))
+        m, _, _ = self.mha2(x, enc, enc, enc_mask)
+        x = self.norm2(x + self.dropout(m))
         x = self.norm3(x + self.dropout(self.pff(x)))
         return x
