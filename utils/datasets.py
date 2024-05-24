@@ -1,3 +1,5 @@
+import json
+
 from torch.utils.data import Dataset
 import torch
 
@@ -29,3 +31,15 @@ class SentenceCompletionDataset(Dataset):
     def __getitem__(self, index):
         src = torch.tensor(self.enc_tokenizer.tokenize(self.enc_sentences[index]))
         return src
+
+
+class NERDataset(Dataset):
+    def __init__(self, json_file):
+        self.data = json.load(open(json_file))
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, item):
+        return self.data[item]["sentence"], \
+            json.dumps(self.data[item]["ner"])
